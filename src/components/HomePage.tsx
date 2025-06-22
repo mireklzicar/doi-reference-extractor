@@ -39,11 +39,13 @@ const HomePage = () => {
   const [selectedFormat, setSelectedFormat] = useState('application/x-bibtex');
   const [selectedStyle, setSelectedStyle] = useState('apa');
   const [formatType, setFormatType] = useState<'format' | 'style'>('format');
-  const [singleFile, setSingleFile] = useState(true);
+  const [singleFile] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [loadingStyles, setLoadingStyles] = useState(false);
   const [showAllStyles, setShowAllStyles] = useState(false);
   const [loadingAllStyles, setLoadingAllStyles] = useState(false);
+  const [lastGeneratedStyle, setLastGeneratedStyle] = useState<string>('');
+  const [lastGeneratedFormat, setLastGeneratedFormat] = useState<string>('');
 
   // Fetch citation styles on component mount
   useEffect(() => {
@@ -91,33 +93,47 @@ const HomePage = () => {
     fetchReferences(mainDoi);
   };
 
-  // Handle format change
+  // Handle format change (only auto-generate for file formats, not citation styles)
   useEffect(() => {
-    if (references.length > 0) {
-      // Update the citation text whenever format changes
-      const isPlainText = formatType === 'style';
-      const format = isPlainText ? selectedStyle : selectedFormat;
-      
+    if (references.length > 0 && formatType === 'format') {
       const options: DownloadOptions = {
-        format,
-        isPlainText,
-        singleFile: isPlainText || singleFile
+        format: selectedFormat,
+        isPlainText: false,
+        singleFile: true
       };
 
       // Generate new citations with the selected format
-      generateCitations(options);
+      generateCitations(options).then(() => {
+        setLastGeneratedFormat(selectedFormat);
+        setLastGeneratedStyle('');
+      });
     }
-  }, [formatType, selectedFormat, selectedStyle, singleFile, references.length]);
+  }, [formatType, selectedFormat, references.length]);
+
+  // Handle manual citation generation for styles
+  const handleGenerateCitations = async () => {
+    if (references.length > 0) {
+      const options: DownloadOptions = {
+        format: selectedStyle,
+        isPlainText: true,
+        singleFile: true
+      };
+
+      await generateCitations(options);
+      setLastGeneratedStyle(selectedStyle);
+      setLastGeneratedFormat('');
+    }
+  };
 
   // Handle download
-  const handleDownload = async () => {
+  const handleDownload = async (forceSingleFile?: boolean) => {
     const isPlainText = formatType === 'style';
     const format = isPlainText ? selectedStyle : selectedFormat;
     
     const options: DownloadOptions = {
       format,
       isPlainText,
-      singleFile: isPlainText || singleFile
+      singleFile: isPlainText || (forceSingleFile !== undefined ? forceSingleFile : singleFile)
     };
 
     await downloadReferences(options);
@@ -194,8 +210,8 @@ const HomePage = () => {
                 {isLoading ? 'Processing...' : 'Get References'}
               </Button>
             </div>
-            <div className="text-xs text-blue-500">
-              Examples: <span className="cursor-pointer hover:underline" onClick={() => setMainDoi('10.1038/nphys1170')}>10.1038/nphys1170</span>, <span className="cursor-pointer hover:underline" onClick={() => setMainDoi('10.1103/physrevlett.10.84')}>10.1103/physrevlett.10.84</span>, <span className="cursor-pointer hover:underline" onClick={() => setMainDoi('10.3945/ajcn.111.027003')}>10.3945/ajcn.111.027003</span>, <span className="cursor-pointer hover:underline" onClick={() => setMainDoi('10.1021/ar500432k')}>10.1021/ar500432k</span>
+            <div className="text-xs text-blue-500 text-left pl-0 ml-0">
+              Try: <span className="cursor-pointer hover:underline" onClick={() => setMainDoi('10.1103/physrevlett.10.84')}>10.1103/physrevlett.10.84</span>, <span className="cursor-pointer hover:underline" onClick={() => setMainDoi('10.3945/ajcn.111.027003')}>10.3945/ajcn.111.027003</span>, <span className="cursor-pointer hover:underline" onClick={() => setMainDoi('10.1021/ar500432k')}>10.1021/ar500432k</span>
             </div>
           </div>
           
@@ -234,62 +250,47 @@ const HomePage = () => {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="mb-6 flex flex-col sm:flex-row gap-4">
-                <div className="flex-1">
-                  <label className="text-sm font-medium mb-1 block">Citation Type</label>
-                  <div className="flex gap-2">
-                    <Button
-                      variant={formatType === 'format' ? 'default' : 'outline'}
+              <div className="mb-6 space-y-4">
+                {/* Citation Format/Style Tabs */}
+                <div className="border-b">
+                  <div className="flex space-x-2">
+                    <button
                       onClick={() => setFormatType('format')}
-                      size="sm"
+                      className={`px-4 py-2 text-sm font-medium ${formatType === 'format'
+                        ? 'border-b-2 border-primary text-primary'
+                        : 'text-muted-foreground'}`}
                     >
                       File Format
-                    </Button>
-                    <Button
-                      variant={formatType === 'style' ? 'default' : 'outline'}
+                    </button>
+                    <button
                       onClick={() => setFormatType('style')}
-                      size="sm"
+                      className={`px-4 py-2 text-sm font-medium ${formatType === 'style'
+                        ? 'border-b-2 border-primary text-primary'
+                        : 'text-muted-foreground'}`}
                     >
                       Citation Style
-                    </Button>
+                    </button>
                   </div>
                 </div>
-
-                <div className="flex-1">
-                  <label className="text-sm font-medium mb-1 block">
-                    {formatType === 'format' ? 'Select Format' : 'Select Style'}
-                  </label>
-                  
+                
+                {/* Format/Style Selection */}
+                <div>
                   {formatType === 'format' ? (
-                    <div className="space-y-2">
-                      <Select value={selectedFormat} onValueChange={setSelectedFormat}>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Select format" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {citationFormats.map((format) => (
-                            <SelectItem key={format.id} value={format.id}>
-                              {format.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      
-                      <div className="flex items-center gap-2">
-                        <label className="text-sm text-muted-foreground">
-                          <input
-                            type="checkbox"
-                            checked={singleFile}
-                            onChange={(e) => setSingleFile(e.target.checked)}
-                            className="mr-1"
-                          />
-                          Generate single file (default)
-                        </label>
-                      </div>
-                    </div>
+                    <Select value={selectedFormat} onValueChange={setSelectedFormat}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select format" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {citationFormats.map((format) => (
+                          <SelectItem key={format.id} value={format.id}>
+                            {format.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   ) : (
                     <div className="space-y-2">
-                      <div className="flex gap-2 mb-2">
+                      <div className="flex gap-2">
                         <Input
                           type="text"
                           placeholder="Search styles..."
@@ -326,11 +327,41 @@ const HomePage = () => {
                     </div>
                   )}
                 </div>
-
-                <div className="flex items-end">
-                  <Button onClick={handleDownload} disabled={isLoading}>
-                    Download {formatType === 'format' ? (singleFile ? 'File' : 'Files (ZIP)') : 'Text'}
+                
+                {/* Action Buttons */}
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    onClick={handleCopy}
+                    disabled={!citationText || generatingCitations}
+                    variant="outline"
+                  >
+                    Copy to Clipboard
                   </Button>
+                  
+                  {formatType === 'format' ? (
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        onClick={() => handleDownload(true)}
+                        disabled={isLoading || generatingCitations}
+                      >
+                        Download Single File
+                      </Button>
+                      <Button
+                        onClick={() => handleDownload(false)}
+                        disabled={isLoading || generatingCitations}
+                        variant="outline"
+                      >
+                        Download ZIP
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button
+                      onClick={() => handleDownload()}
+                      disabled={isLoading || generatingCitations}
+                    >
+                      Download Text
+                    </Button>
+                  )}
                 </div>
               </div>
 
@@ -338,16 +369,23 @@ const HomePage = () => {
               <div className="mb-4 border rounded-md">
                 <div className="bg-muted p-2 border-b flex justify-between items-center">
                   <div className="text-sm font-medium">Citation Output</div>
-                  <Button size="sm" variant="ghost" onClick={handleCopy} disabled={!citationText}>
-                    Copy
-                  </Button>
                 </div>
                 {generatingCitations ? (
                   <div className="p-8 text-center text-muted-foreground">
                     Generating citations...
                   </div>
+                ) : formatType === 'style' && (lastGeneratedStyle !== selectedStyle || !citationText) ? (
+                  <div className="p-8 text-center">
+                    <Button onClick={handleGenerateCitations} disabled={generatingCitations}>
+                      Generate Citations ({citationStyles.find(s => s.id === selectedStyle)?.name || selectedStyle})
+                    </Button>
+                  </div>
+                ) : formatType === 'format' && (lastGeneratedFormat !== selectedFormat || !citationText) ? (
+                  <div className="p-8 text-center text-muted-foreground">
+                    Loading format...
+                  </div>
                 ) : citationText ? (
-                  <pre className="p-4 overflow-auto text-sm bg-muted/50 max-h-96">
+                  <pre className="p-4 overflow-auto text-sm bg-muted/50 max-h-96 whitespace-pre-wrap text-left">
                     <code>{citationText}</code>
                   </pre>
                 ) : (
@@ -357,19 +395,9 @@ const HomePage = () => {
                 )}
               </div>
             </CardContent>
-            <CardFooter className="flex justify-between">
+            <CardFooter className="flex flex-col sm:flex-row justify-between gap-3">
               <div className="text-sm text-muted-foreground">
                 {references.length} references
-              </div>
-              <div className="flex gap-2">
-                <Button onClick={handleDownload} disabled={isLoading}>
-                  Download {formatType === 'format' ? (singleFile ? 'File' : 'Files (ZIP)') : 'Text'}
-                </Button>
-                {citationText && (
-                  <Button variant="outline" onClick={handleCopy}>
-                    Copy to Clipboard
-                  </Button>
-                )}
               </div>
             </CardFooter>
           </Card>
