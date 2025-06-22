@@ -196,7 +196,7 @@ const HomePage = () => {
         </CardHeader>
         <CardContent>
           <div className="flex flex-col gap-2">
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <Input
                 type="text"
                 placeholder="e.g., 10.1073/pnas.1118373109"
@@ -206,11 +206,14 @@ const HomePage = () => {
                 disabled={isLoading}
                 className="flex-1"
               />
-              <Button onClick={handleSubmit} disabled={isLoading}>
+              <div className="text-xs text-blue-500 text-left pl-0 ml-0 sm:hidden">
+                Try: <span className="cursor-pointer hover:underline" onClick={() => setMainDoi('10.1103/physrevlett.10.84')}>10.1103/physrevlett.10.84</span>, <span className="cursor-pointer hover:underline" onClick={() => setMainDoi('10.3945/ajcn.111.027003')}>10.3945/ajcn.111.027003</span>, <span className="cursor-pointer hover:underline" onClick={() => setMainDoi('10.1021/ar500432k')}>10.1021/ar500432k</span>
+              </div>
+              <Button onClick={handleSubmit} disabled={isLoading} className="w-full sm:w-auto">
                 {isLoading ? 'Processing...' : 'Get References'}
               </Button>
             </div>
-            <div className="text-xs text-blue-500 text-left pl-0 ml-0">
+            <div className="hidden sm:block text-xs text-blue-500 text-left pl-0 ml-0">
               Try: <span className="cursor-pointer hover:underline" onClick={() => setMainDoi('10.1103/physrevlett.10.84')}>10.1103/physrevlett.10.84</span>, <span className="cursor-pointer hover:underline" onClick={() => setMainDoi('10.3945/ajcn.111.027003')}>10.3945/ajcn.111.027003</span>, <span className="cursor-pointer hover:underline" onClick={() => setMainDoi('10.1021/ar500432k')}>10.1021/ar500432k</span>
             </div>
           </div>
