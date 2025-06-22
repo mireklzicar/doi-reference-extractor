@@ -10,11 +10,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@citation-js/core": "^0.7.18",
-    "@citation-js/plugin-bibtex": "^0.7.18",
-    "@citation-js/plugin-csl": "^0.7.18",
-    "@citation-js/plugin-doi": "^0.7.18",
-    "@citation-js/plugin-ris": "^0.7.18",
     "@radix-ui/react-dialog": "^1.1.14",
     "@radix-ui/react-label": "^2.1.7",
     "@radix-ui/react-progress": "^1.1.7",

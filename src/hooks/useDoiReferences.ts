@@ -3,6 +3,7 @@ import type { DoiReference, DownloadOptions } from '../types';
 import { getReferences, extractCitedDois, fetchDoiMetadata, convertDoiToCitation, getFilenameFromDoiRef } from '../services/doiService';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
+import { FORMAT_EXTENSIONS } from '../utils/citationUtils';
 
 export interface DoiReferencesState {
   isLoading: boolean;
@@ -155,7 +156,9 @@ export function useDoiReferences() {
         for (const ref of state.references) {
           try {
             const citation = await convertDoiToCitation(ref.doi, format);
-            const filename = getFilenameFromDoiRef(ref) + '.' + format.toLowerCase();
+            // Get appropriate file extension for the format
+            const fileExt = FORMAT_EXTENSIONS[format] || '.txt';
+            const filename = getFilenameFromDoiRef(ref) + fileExt;
             
             zip.file(filename, citation);
             count++;
@@ -173,7 +176,9 @@ export function useDoiReferences() {
           ? state.paperTitle.slice(0, 30).replace(/[^a-z0-9]/gi, '_')
           : state.mainDoi.replace(/[/.:]/g, '_');
         
-        const zipFilename = `${paperName}_references_${format}.zip`;
+        // Get a cleaner format name for the zip file
+        const formatName = format.split('/').pop()?.replace('x-', '') || format;
+        const zipFilename = `${paperName}_references_${formatName}.zip`;
         
         // Generate and download the zip
         const content = await zip.generateAsync({ type: 'blob' });

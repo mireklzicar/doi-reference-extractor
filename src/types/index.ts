@@ -21,11 +21,11 @@ export interface DoiReference {
   year?: string;
 }
 
-// Type for citation formats
-export type CitationFormat = 'bibtex' | 'ris' | 'endnote' | 'refworks';
+// Type for citation formats - more dynamic now
+export type CitationFormat = string;
 
-// Type for citation styles
-export interface CitationStyle {
+// Type for citation format/style metadata
+export interface CitationOption {
   id: string;
   name: string;
 }

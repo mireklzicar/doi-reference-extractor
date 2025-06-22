@@ -7,45 +7,61 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Progress } from './ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import type { DownloadOptions } from '../types';
-
-const CITATION_FORMATS = [
-  { id: 'bibtex', name: 'BibTeX' },
-  { id: 'ris', name: 'RIS' },
-  { id: 'endnote', name: 'EndNote' },
-  { id: 'refworks', name: 'RefWorks' },
-];
-
-const CITATION_STYLES = [
-  { id: 'apa', name: 'APA' },
-  { id: 'harvard1', name: 'Harvard' },
-  { id: 'vancouver', name: 'Vancouver' },
-  { id: 'ieee', name: 'IEEE' },
-  { id: 'chicago', name: 'Chicago' },
-  { id: 'mla', name: 'MLA' },
-  { id: 'nature', name: 'Nature' },
-  { id: 'science', name: 'Science' },
-];
+import type { DownloadOptions, CitationOption } from '../types';
+import { getCitationFormats, fetchCslStyles } from '../utils/citationUtils';
 
 const HomePage = () => {
   const { doi: urlDoi } = useParams<{ doi?: string }>();
   const navigate = useNavigate();
-  const { 
-    isLoading, 
-    error, 
-    progress, 
-    mainDoi, 
-    paperTitle, 
-    references, 
+  const {
+    isLoading,
+    error,
+    progress,
+    mainDoi,
+    paperTitle,
+    references,
     fetchReferences,
     downloadReferences,
     setMainDoi
   } = useDoiReferences();
 
-  const [selectedFormat, setSelectedFormat] = useState('bibtex');
+  // State variables for citation formats and styles
+  const [citationFormats] = useState<CitationOption[]>(getCitationFormats());
+  const [citationStyles, setCitationStyles] = useState<CitationOption[]>([
+    // Default styles to show while loading
+    { id: 'apa', name: 'American Psychological Association' },
+    { id: 'vancouver', name: 'Vancouver' },
+    { id: 'harvard1', name: 'Harvard' }
+  ]);
+  const [selectedFormat, setSelectedFormat] = useState('application/x-bibtex');
   const [selectedStyle, setSelectedStyle] = useState('apa');
   const [formatType, setFormatType] = useState<'format' | 'style'>('format');
   const [searchQuery, setSearchQuery] = useState('');
+  const [loadingStyles, setLoadingStyles] = useState(false);
+
+  // Fetch citation styles on component mount
+  useEffect(() => {
+    const loadStyles = async () => {
+      setLoadingStyles(true);
+      try {
+        const styles = await fetchCslStyles();
+        // Make sure we got valid data
+        if (Array.isArray(styles) && styles.length > 0) {
+          setCitationStyles(styles);
+        } else {
+          console.error('Invalid styles data received:', styles);
+          toast.error('Could not load citation styles. Using defaults.');
+        }
+      } catch (error) {
+        console.error("Error loading citation styles:", error);
+        toast.error("Failed to load citation styles. Please try again later.");
+      } finally {
+        setLoadingStyles(false);
+      }
+    };
+    
+    loadStyles();
+  }, []);
   
   // Handle URL DOI parameter
   useEffect(() => {
@@ -81,10 +97,11 @@ const HomePage = () => {
 
     downloadReferences(options);
   };
+  
 
-  // Filter styles for search
-  const filteredStyles = CITATION_STYLES.filter(style =>
-    style.name.toLowerCase().includes(searchQuery.toLowerCase())
+  // Filter styles for search with safety checks
+  const filteredStyles = citationStyles.filter(style =>
+    style && style.name ? style.name.toLowerCase().includes(searchQuery.toLowerCase()) : false
   );
 
   return (
@@ -182,7 +199,7 @@ const HomePage = () => {
                         <SelectValue placeholder="Select format" />
                       </SelectTrigger>
                       <SelectContent>
-                        {CITATION_FORMATS.map((format) => (
+                        {citationFormats.map((format) => (
                           <SelectItem key={format.id} value={format.id}>
                             {format.name}
                           </SelectItem>
@@ -197,13 +214,18 @@ const HomePage = () => {
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="mb-2"
+                        disabled={loadingStyles}
                       />
-                      <Select value={selectedStyle} onValueChange={setSelectedStyle}>
+                      <Select value={selectedStyle} onValueChange={setSelectedStyle} disabled={loadingStyles}>
                         <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Select style" />
+                          <SelectValue placeholder={loadingStyles ? "Loading styles..." : "Select style"} />
                         </SelectTrigger>
                         <SelectContent>
-                          {filteredStyles.map((style) => (
+                          {loadingStyles ? (
+                            <SelectItem value="loading" disabled>Loading citation styles...</SelectItem>
+                          ) : filteredStyles.length === 0 ? (
+                            <SelectItem value="none" disabled>No styles found</SelectItem>
+                          ) : filteredStyles.map((style) => (
                             <SelectItem key={style.id} value={style.id}>
                               {style.name}
                             </SelectItem>

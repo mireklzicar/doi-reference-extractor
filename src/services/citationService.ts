@@ -1,41 +1,43 @@
-import { Cite } from '@citation-js/core';
-import '@citation-js/plugin-bibtex';
-import '@citation-js/plugin-doi';
-import '@citation-js/plugin-ris';
-import '@citation-js/plugin-csl';
 
 /**
- * Convert a DOI to a specific citation format
+ * Convert a DOI to a specific citation format using Crossref DOI Content-Negotiation API
  * @param doi DOI to convert
- * @param format Citation format 
+ * @param format Citation format (MIME type) or style ID
  * @param style Citation style for text format
  * @returns Promise with citation string
  */
 export async function convertDoiToCitation(
-  doi: string, 
-  format: string = 'bibtex',
+  doi: string,
+  format: string = 'application/x-bibtex',
   style?: string
 ): Promise<string> {
   try {
-    // Create a new citation
-    const cite = await Cite.async(doi);
+    const cleanedDoi = doi.replace(/^doi:/i, '').trim();
+    const url = `https://doi.org/${cleanedDoi}`;
     
-    // Process the format request
-    if (format === 'bibtex') {
-      return cite.format('bibtex');
-    } else if (format === 'ris') {
-      return cite.format('ris');
-    } else if (format === 'endnote') {
-      return cite.format('bibliography', { format: 'json', type: 'endnote' });
-    } else if (format === 'refworks') {
-      return cite.format('bibliography', { format: 'json', type: 'refworks' });
+    let headers: Record<string, string>;
+    
+    // Determine if this is a style-based citation (plain text)
+    if (style || (!format.includes('/'))) {
+      // Text bibliography with specified style
+      const styleId = style || format;
+      headers = {
+        'Accept': `text/x-bibliography; style=${styleId}; locale=en-US`
+      };
     } else {
-      // Format as bibliography with specified style
-      return cite.format('bibliography', {
-        format: 'text',
-        template: style || 'apa'
-      });
+      // Format-based citation
+      headers = {
+        'Accept': format
+      };
     }
+    
+    const response = await fetch(url, { headers });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    return await response.text();
   } catch (error) {
     console.error(`Error converting DOI ${doi} to format ${format}:`, error);
     return `Error: Could not convert DOI ${doi} to ${format} format`;
@@ -43,14 +45,27 @@ export async function convertDoiToCitation(
 }
 
 /**
- * Get paper metadata from a DOI
+ * Get paper metadata from a DOI using Crossref API
  * @param doi DOI string
  * @returns Promise with paper metadata
  */
 export async function getPaperMetadata(doi: string) {
   try {
-    const cite = await Cite.async(doi);
-    return cite.data[0] || null;
+    const cleanedDoi = doi.replace(/^doi:/i, '').trim();
+    const url = `https://doi.org/${cleanedDoi}`;
+    
+    const response = await fetch(url, {
+      headers: {
+        'Accept': 'application/vnd.citationstyles.csl+json'
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    const metadata = await response.json();
+    return metadata;
   } catch (error) {
     console.error(`Error fetching metadata for DOI ${doi}:`, error);
     return null;
@@ -76,7 +91,7 @@ export async function fetchDoiMetadata(dois: string[]) {
       return {
         doi,
         title: metadata.title,
-        authors: metadata.author?.map((author: { family?: string; given?: string }) => 
+        authors: metadata.author?.map((author: { family?: string; given?: string }) =>
           `${author.family || ''}${author.given ? ', ' + author.given : ''}`
         ),
         year: metadata.issued?.['date-parts']?.[0]?.[0]?.toString()
