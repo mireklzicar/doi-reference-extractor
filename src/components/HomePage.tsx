@@ -7,6 +7,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Progress } from './ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Github } from 'lucide-react';
 import type { DownloadOptions, CitationOption } from '../types';
 import { getCitationFormats, fetchCslStyles } from '../utils/citationUtils';
 
@@ -182,7 +183,24 @@ const HomePage = () => {
 
   return (
     <div className="flex flex-col gap-8">
-      <div className="flex flex-col items-center justify-center text-center space-y-2">
+      <div className="flex flex-col items-center justify-center text-center space-y-2 relative">
+        <div className="absolute top-0 right-0">
+          <Button
+            variant="ghost"
+            size="sm"
+            asChild
+            className="text-muted-foreground hover:text-foreground"
+          >
+            <a
+              href="https://github.com/mireklzicar/doi-reference-extractor"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="View source code on GitHub"
+            >
+              <Github className="h-5 w-5" />
+            </a>
+          </Button>
+        </div>
         <h1 className="text-3xl font-bold">DOI Reference Extractor</h1>
         <p className="text-muted-foreground">
           Enter a DOI to extract and download all references in your preferred citation format

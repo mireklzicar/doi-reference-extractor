@@ -4,11 +4,7 @@
 
 A single-page application to extract references from academic papers by DOI, convert them to various citation formats, and download them in bulk.
 
-
-<p align="center">
-  <video src="assets/demo.mp4" width="500px"></video>
-</p>
-
+![Demo](public/preview.png)
 
 ## Overview
 
