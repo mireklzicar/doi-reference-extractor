@@ -38,13 +38,15 @@ const HomePage = () => {
   const [formatType, setFormatType] = useState<'format' | 'style'>('format');
   const [searchQuery, setSearchQuery] = useState('');
   const [loadingStyles, setLoadingStyles] = useState(false);
+  const [showAllStyles, setShowAllStyles] = useState(false);
+  const [loadingAllStyles, setLoadingAllStyles] = useState(false);
 
   // Fetch citation styles on component mount
   useEffect(() => {
     const loadStyles = async () => {
       setLoadingStyles(true);
       try {
-        const styles = await fetchCslStyles();
+        const styles = await fetchCslStyles(false); // Load top styles by default
         // Make sure we got valid data
         if (Array.isArray(styles) && styles.length > 0) {
           setCitationStyles(styles);
@@ -96,6 +98,32 @@ const HomePage = () => {
     };
 
     downloadReferences(options);
+  };
+
+  // Handle loading all styles
+  const handleLoadAllStyles = async () => {
+    if (showAllStyles) {
+      // Already showing all styles, just toggle back to top styles
+      setShowAllStyles(false);
+      setSearchQuery('');
+      // Reload top styles
+      const topStyles = await fetchCslStyles(false);
+      setCitationStyles(topStyles);
+      return;
+    }
+
+    setLoadingAllStyles(true);
+    try {
+      const allStyles = await fetchCslStyles(true); // Load all styles
+      setCitationStyles(allStyles);
+      setShowAllStyles(true);
+      toast.success(`Loaded ${allStyles.length} citation styles`);
+    } catch (error) {
+      console.error("Error loading all citation styles:", error);
+      toast.error("Failed to load all citation styles.");
+    } finally {
+      setLoadingAllStyles(false);
+    }
   };
   
 
@@ -208,14 +236,24 @@ const HomePage = () => {
                     </Select>
                   ) : (
                     <div className="space-y-2">
-                      <Input
-                        type="text"
-                        placeholder="Search styles..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="mb-2"
-                        disabled={loadingStyles}
-                      />
+                      <div className="flex gap-2 mb-2">
+                        <Input
+                          type="text"
+                          placeholder="Search styles..."
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          className="flex-1"
+                          disabled={loadingStyles}
+                        />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleLoadAllStyles}
+                          disabled={loadingStyles || loadingAllStyles}
+                        >
+                          {loadingAllStyles ? 'Loading...' : showAllStyles ? `Top Styles` : `All Styles`}
+                        </Button>
+                      </div>
                       <Select value={selectedStyle} onValueChange={setSelectedStyle} disabled={loadingStyles}>
                         <SelectTrigger className="w-full">
                           <SelectValue placeholder={loadingStyles ? "Loading styles..." : "Select style"} />

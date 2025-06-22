@@ -1,48 +1,81 @@
 import type { CitationOption } from '../types';
 
+// Extended type for citation styles with descriptions
+export interface CitationStyleWithDescription extends CitationOption {
+  description?: string;
+}
+
 /**
- * Fetch all available CSL styles from Crossref API
+ * Load top/popular citation styles from local JSON
  * @returns Promise with array of citation style objects
  */
-export async function fetchCslStyles(): Promise<CitationOption[]> {
+export async function loadTopCitationStyles(): Promise<CitationStyleWithDescription[]> {
   try {
-    const res = await fetch('https://api.crossref.org/styles');
-    if (!res.ok) throw new Error(`Crossref styles endpoint: ${res.status}`);
+    const res = await fetch('/top-citation-styles.json');
+    if (!res.ok) throw new Error(`Failed to load top citation styles: ${res.status}`);
     
-    type ApiShape = {
-      status: string;
-      "message-type": string;
-      "message-version": string;
-      message: {
-        "total-results": number;
-        items: string[];
-      };
-    };
+    const data = await res.json();
     
-    const data: ApiShape = await res.json();
+    if (!data.topStyles || !Array.isArray(data.topStyles)) {
+      throw new Error('Invalid top citation styles format');
+    }
     
-    if (data.status !== "ok" || !Array.isArray(data.message.items)) {
-      throw new Error('Invalid response format from Crossref API');
+    return data.topStyles;
+  } catch (error) {
+    console.error("Error loading top citation styles:", error);
+    // Fallback to basic styles if loading fails
+    return [
+      { id: 'apa', name: 'APA (American Psychological Association)', description: 'Psychology, social sciences, education, business' },
+      { id: 'harvard1', name: 'Harvard', description: 'Business, social sciences, natural sciences' },
+      { id: 'vancouver', name: 'Vancouver', description: 'Medicine, life sciences, biomedical research' },
+      { id: 'ieee', name: 'IEEE', description: 'Engineering, computer science, electronics, technology' },
+      { id: 'chicago-fullnote-bibliography', name: 'Chicago Notes & Bibliography', description: 'History, literature, arts, philosophy' },
+      { id: 'modern-language-association', name: 'MLA (Modern Language Association)', description: 'Literature, humanities, arts, language studies' },
+      { id: 'nature', name: 'Nature', description: 'Natural sciences, multidisciplinary research' },
+      { id: 'american-medical-association', name: 'AMA (American Medical Association)', description: 'Medicine, healthcare' },
+    ];
+  }
+}
+
+/**
+ * Load all available citation styles from local JSON
+ * @returns Promise with array of citation style objects
+ */
+export async function loadAllCitationStyles(): Promise<CitationOption[]> {
+  try {
+    const res = await fetch('/citation-styles.json');
+    if (!res.ok) throw new Error(`Failed to load citation styles: ${res.status}`);
+    
+    const data = await res.json();
+    
+    if (!data.message || !Array.isArray(data.message.items)) {
+      throw new Error('Invalid citation styles format');
     }
     
     // Convert string IDs to CitationOption objects with pretty names
-    return data.message.items.map(id => ({
+    return data.message.items.map((id: string) => ({
       id,
       name: formatStyleName(id)
     }));
   } catch (error) {
-    console.error("Error fetching CSL styles from Crossref:", error);
-    // Fallback to basic styles if API fails
-    return [
-      { id: 'apa', name: 'American Psychological Association 7th edition' },
-      { id: 'harvard1', name: 'Harvard - author-date' },
-      { id: 'vancouver', name: 'Vancouver' },
-      { id: 'ieee', name: 'Institute of Electrical and Electronics Engineers' },
-      { id: 'chicago-fullnote-bibliography', name: 'Chicago Manual of Style' },
-      { id: 'modern-language-association', name: 'Modern Language Association' },
-      { id: 'nature', name: 'Nature' },
-      { id: 'science', name: 'Science' },
-    ];
+    console.error("Error loading all citation styles:", error);
+    // Fallback to top styles if loading fails
+    const topStyles = await loadTopCitationStyles();
+    return topStyles.map(style => ({ id: style.id, name: style.name }));
+  }
+}
+
+/**
+ * Fetch citation styles (uses top styles by default, can load all if needed)
+ * @param loadAll Whether to load all available styles or just top ones
+ * @returns Promise with array of citation style objects
+ */
+export async function fetchCslStyles(loadAll: boolean = false): Promise<CitationOption[]> {
+  if (loadAll) {
+    return await loadAllCitationStyles();
+  } else {
+    const topStyles = await loadTopCitationStyles();
+    return topStyles.map(style => ({ id: style.id, name: style.name }));
   }
 }
 

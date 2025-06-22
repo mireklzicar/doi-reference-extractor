@@ -1,0 +1,64 @@
+{
+  "topStyles": [
+    {
+      "id": "apa",
+      "name": "APA (American Psychological Association)",
+      "description": "Psychology, social sciences, education, business"
+    },
+    {
+      "id": "modern-language-association",
+      "name": "MLA (Modern Language Association)",
+      "description": "Literature, humanities, arts, language studies"
+    },
+    {
+      "id": "chicago-author-date",
+      "name": "Chicago Author-Date",
+      "description": "History, literature, arts, philosophy"
+    },
+    {
+      "id": "chicago-fullnote-bibliography",
+      "name": "Chicago Notes & Bibliography",
+      "description": "History, literature, arts, philosophy"
+    },
+    {
+      "id": "harvard1",
+      "name": "Harvard",
+      "description": "Business, social sciences, natural sciences"
+    },
+    {
+      "id": "vancouver",
+      "name": "Vancouver",
+      "description": "Medicine, life sciences, biomedical research"
+    },
+    {
+      "id": "ieee",
+      "name": "IEEE",
+      "description": "Engineering, computer science, electronics, technology"
+    },
+    {
+      "id": "american-chemical-society",
+      "name": "ACS (American Chemical Society)",
+      "description": "Chemistry, chemical engineering"
+    },
+    {
+      "id": "nature",
+      "name": "Nature",
+      "description": "Natural sciences, multidisciplinary research"
+    },
+    {
+      "id": "american-medical-association",
+      "name": "AMA (American Medical Association)",
+      "description": "Medicine, healthcare"
+    },
+    {
+      "id": "iso690-numeric-en",
+      "name": "ISO 690 (Numeric)",
+      "description": "International standard used globally across disciplines"
+    },
+    {
+      "id": "iso690-author-date-en",
+      "name": "ISO 690 (Author-Date)",
+      "description": "International standard used globally across disciplines"
+    }
+  ]
+}
