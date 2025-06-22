@@ -12,6 +12,8 @@ export interface DoiReferencesState {
   mainDoi: string;
   paperTitle: string | null;
   references: DoiReference[];
+  citationText: string;
+  generatingCitations: boolean;
 }
 
 export function useDoiReferences() {
@@ -21,7 +23,9 @@ export function useDoiReferences() {
     progress: 0,
     mainDoi: '',
     paperTitle: null,
-    references: []
+    references: [],
+    citationText: '',
+    generatingCitations: false
   });
 
   /**
@@ -36,7 +40,9 @@ export function useDoiReferences() {
       progress: 0,
       mainDoi: doi,
       paperTitle: null,
-      references: []
+      references: [],
+      citationText: '',
+      generatingCitations: false
     });
 
     try {
@@ -104,51 +110,90 @@ export function useDoiReferences() {
   };
 
   /**
-   * Download references in the selected format
-   * @param options Download options
+   * Generate citations for all references in the specified format
+   * @param options Format options
    */
-  const downloadReferences = async (options: DownloadOptions) => {
-    const { format, isPlainText } = options;
+  const generateCitations = async (options: DownloadOptions): Promise<string> => {
+    const { format } = options;
     
     if (state.references.length === 0) {
-      return;
+      return '';
+    }
+    
+    setState(prev => ({ ...prev, generatingCitations: true }));
+    
+    try {
+      // Use Promise.all to process citations in parallel
+      const citationPromises = state.references.map(ref =>
+        convertDoiToCitation(ref.doi, format)
+          .catch(error => {
+            console.error(`Error converting DOI ${ref.doi}:`, error);
+            return `Error: Could not convert DOI ${ref.doi}`;
+          })
+      );
+      
+      // Wait for all citations to complete in parallel
+      const citations = await Promise.all(citationPromises);
+      // Join all citations with double newlines
+      const content = citations.join('\n\n');
+      
+      // Update the citation text in the state
+      setState(prev => ({
+        ...prev,
+        citationText: content,
+        generatingCitations: false
+      }));
+      
+      return content;
+    } catch (error) {
+      console.error('Error generating citations:', error);
+      setState(prev => ({
+        ...prev,
+        error: error instanceof Error ? error.message : 'Error generating citations',
+        generatingCitations: false
+      }));
+      return '';
+    }
+  };
+
+  /**
+   * Download references in the selected format
+   * @param options Download options
+   * @returns Promise with citation text content if available
+   */
+  const downloadReferences = async (options: DownloadOptions) => {
+    const { format, isPlainText, singleFile = false } = options;
+    
+    if (state.references.length === 0) {
+      return null;
     }
 
     try {
       setState(prev => ({ ...prev, isLoading: true, progress: 0 }));
       
-      if (isPlainText) {
-        // For plain text formats (e.g., citation styles), create single file
-        let content = '';
-        let count = 0;
-        const totalRefs = state.references.length;
-        
-        for (const ref of state.references) {
-          try {
-            const citation = await convertDoiToCitation(ref.doi, format);
-            content += citation + '\n\n';
-            count++;
-            setState(prev => ({ 
-              ...prev, 
-              progress: Math.round((count / totalRefs) * 100) 
-            }));
-          } catch (error) {
-            console.error(`Error converting DOI ${ref.doi}:`, error);
-          }
-        }
-        
+      // Reuse the citation content if we already have it, or generate it
+      let content = state.citationText;
+      if (!content) {
+        content = await generateCitations(options);
+      }
+      
+      if (isPlainText || singleFile) {
         // Create file name
-        const paperName = state.paperTitle 
+        const paperName = state.paperTitle
           ? state.paperTitle.slice(0, 30).replace(/[^a-z0-9]/gi, '_')
           : state.mainDoi.replace(/[/.:]/g, '_');
         
-        const filename = `${paperName}_references.txt`;
+        // Get file extension
+        const fileExt = isPlainText ? '.txt' : (FORMAT_EXTENSIONS[format] || '.txt');
+        const filename = `${paperName}_references${fileExt}`;
         
         // Create and download file
         const blob = new Blob([content], { type: 'text/plain' });
         saveAs(blob, filename);
+        
+        return content;
       } else {
-        // For structured formats (bibtex, ris, etc.), create zip with multiple files
+        // For structured formats (bibtex, ris, etc.) when multi-file (ZIP) is requested
         const zip = new JSZip();
         let count = 0;
         const totalRefs = state.references.length;
@@ -162,9 +207,9 @@ export function useDoiReferences() {
             
             zip.file(filename, citation);
             count++;
-            setState(prev => ({ 
-              ...prev, 
-              progress: Math.round((count / totalRefs) * 100) 
+            setState(prev => ({
+              ...prev,
+              progress: Math.round((count / totalRefs) * 100)
             }));
           } catch (error) {
             console.error(`Error converting DOI ${ref.doi}:`, error);
@@ -172,7 +217,7 @@ export function useDoiReferences() {
         }
         
         // Create file name for the zip
-        const paperName = state.paperTitle 
+        const paperName = state.paperTitle
           ? state.paperTitle.slice(0, 30).replace(/[^a-z0-9]/gi, '_')
           : state.mainDoi.replace(/[/.:]/g, '_');
         
@@ -183,6 +228,8 @@ export function useDoiReferences() {
         // Generate and download the zip
         const content = await zip.generateAsync({ type: 'blob' });
         saveAs(content, zipFilename);
+        
+        return null; // No text content to display for ZIP files
       }
     } catch (error) {
       console.error('Error in downloadReferences:', error);
@@ -199,7 +246,9 @@ export function useDoiReferences() {
   return {
     ...state,
     fetchReferences,
-    downloadReferences,
-    setMainDoi: (doi: string) => setState(prev => ({ ...prev, mainDoi: doi }))
+    generateCitations,
+    downloadReferences: downloadReferences as (options: DownloadOptions) => Promise<string | null>,
+    setMainDoi: (doi: string) => setState(prev => ({ ...prev, mainDoi: doi })),
+    setCitationText: (text: string) => setState(prev => ({ ...prev, citationText: text }))
   };
 }

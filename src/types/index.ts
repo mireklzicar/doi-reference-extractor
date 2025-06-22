@@ -34,4 +34,5 @@ export interface CitationOption {
 export interface DownloadOptions {
   format: CitationFormat | string;
   isPlainText: boolean;
+  singleFile?: boolean;
 }
