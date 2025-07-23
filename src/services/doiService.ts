@@ -18,8 +18,7 @@ export const cleanDoi = (doi: string): string => {
  */
 export const getReferences = async (doi: string): Promise<Reference[] | null> => {
   const cleanedDoi = cleanDoi(doi);
-  const baseUrl = 'https://opencitations.net/index/api/v2/references/';
-  const url = `${baseUrl}doi:${cleanedDoi}`;
+  const url = `/api/references/doi:${cleanedDoi}`;
 
   try {
     const response = await axios.get(url);
