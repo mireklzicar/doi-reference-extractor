@@ -1,0 +1,27 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/references/(.*)",
+      "destination": "https://api.opencitations.net/index/v2/references/$1"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/api/references/(.*)",
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        },
+        {
+          "key": "Access-Control-Allow-Methods",
+          "value": "GET, OPTIONS"
+        },
+        {
+          "key": "Access-Control-Allow-Headers",
+          "value": "Content-Type, Authorization"
+        }
+      ]
+    }
+  ]
+}

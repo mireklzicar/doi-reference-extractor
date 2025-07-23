@@ -8,9 +8,21 @@ export default defineConfig({
   server: {
     proxy: {
       '/api/references': {
-        target: 'https://opencitations.net/index/api/v2/references',
+        target: 'https://api.opencitations.net/index/v2/references',
         changeOrigin: true,
-        rewrite: path => path.replace(/^\/api\/references/, ''),
+        rewrite: (requestPath) => requestPath.replace(/^\/api\/references/, ''),
+        secure: true,
+        configure: (proxy) => {
+          proxy.on('error', (err) => {
+            console.log('proxy error', err);
+          });
+          proxy.on('proxyReq', (_proxyReq, req) => {
+            console.log('Proxying request:', req.method, req.url);
+          });
+          proxy.on('proxyRes', (proxyRes, req) => {
+            console.log('Received response:', proxyRes.statusCode, req.url);
+          });
+        },
       },
     },
   },
