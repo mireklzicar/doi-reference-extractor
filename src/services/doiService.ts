@@ -18,13 +18,24 @@ export const cleanDoi = (doi: string): string => {
  */
 export const getReferences = async (doi: string): Promise<Reference[] | null> => {
   const cleanedDoi = cleanDoi(doi);
+  // Use proxy path that works for both Vite dev and nginx production
   const url = `/api/references/doi:${cleanedDoi}`;
 
   try {
+    console.log(`Fetching references via proxy: ${url}`);
     const response = await axios.get(url);
     return response.data as Reference[];
   } catch (error) {
-    console.error(`Error fetching references for DOI ${doi}:`, error);
+    if (axios.isAxiosError(error)) {
+      console.error(`Error fetching references for DOI ${doi}:`, {
+        status: error.response?.status,
+        message: error.response?.data?.message || error.message,
+        url: url,
+        fullUrl: window.location.origin + url
+      });
+    } else {
+      console.error(`Unexpected error fetching references for DOI ${doi}:`, error);
+    }
     return null;
   }
 };
