@@ -19,6 +19,7 @@ export interface DoiReference {
   title?: string;
   authors?: string[];
   year?: string;
+  csl?: Record<string, unknown>;
 }
 
 // Type for citation formats - more dynamic now

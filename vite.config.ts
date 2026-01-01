@@ -24,6 +24,12 @@ export default defineConfig({
           });
         },
       },
+      '/api/crossref': {
+        target: 'https://api.crossref.org',
+        changeOrigin: true,
+        rewrite: (requestPath) => requestPath.replace(/^\/api\/crossref/, ''),
+        secure: true,
+      },
     },
   },
   plugins: [react(), tailwindcss()],

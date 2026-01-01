@@ -66,7 +66,7 @@ DOI Reference Extractor allows researchers to quickly extract all references fro
    - Data format: JSON containing cited DOIs and metadata
 
 2. **[DOI Content Negotiation](https://www.crossref.org/documentation/retrieve-metadata/content-negotiation/)**
-   - Endpoint: `https://doi.org/{DOI}`
+   - Endpoint: `GET /api/crossref/v1/works/{DOI}/transform` (proxied to `https://api.crossref.org/...`)
    - Purpose: Fetches metadata and formatted citations for DOIs
    - Formats: BibTeX, RIS, CSL JSON, RDF XML, etc.
    - Implements CSL (Citation Style Language) for text-based citations

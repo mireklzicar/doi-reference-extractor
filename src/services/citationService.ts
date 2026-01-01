@@ -6,6 +6,66 @@
  * @param style Citation style for text format
  * @returns Promise with citation string
  */
+function sleep(ms: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, ms));
+}
+
+async function mapWithConcurrency<TItem, TResult>(
+  items: TItem[],
+  concurrency: number,
+  mapper: (item: TItem, index: number) => Promise<TResult>,
+  onItemDone?: (completed: number, total: number) => void
+): Promise<TResult[]> {
+  const results: TResult[] = new Array(items.length);
+  let nextIndex = 0;
+  let completed = 0;
+
+  const workers = Array.from({ length: Math.max(1, concurrency) }, async () => {
+    while (nextIndex < items.length) {
+      const currentIndex = nextIndex;
+      nextIndex += 1;
+      results[currentIndex] = await mapper(items[currentIndex], currentIndex);
+      completed += 1;
+      onItemDone?.(completed, items.length);
+    }
+  });
+
+  await Promise.all(workers);
+  return results;
+}
+
+async function fetchWithRetry(url: string, init: RequestInit, maxRetries: number = 6): Promise<Response> {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const res = await fetch(url, init);
+
+      if (res.status !== 429 && res.status !== 503 && res.status !== 504) {
+        return res;
+      }
+
+      if (attempt === maxRetries) {
+        return res;
+      }
+
+      const retryAfterHeader = res.headers.get('Retry-After');
+      const retryAfterSeconds = retryAfterHeader ? Number(retryAfterHeader) : NaN;
+      const baseDelayMs = Number.isFinite(retryAfterSeconds)
+        ? Math.max(0, retryAfterSeconds) * 1000
+        : 750 * Math.pow(2, attempt);
+
+      await sleep(baseDelayMs + Math.floor(Math.random() * 250));
+    } catch (err) {
+      lastError = err;
+      if (attempt === maxRetries) break;
+      await sleep(750 * Math.pow(2, attempt) + Math.floor(Math.random() * 250));
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error('Failed to fetch');
+}
+
 export async function convertDoiToCitation(
   doi: string,
   format: string = 'application/x-bibtex',
@@ -13,7 +73,7 @@ export async function convertDoiToCitation(
 ): Promise<string> {
   try {
     const cleanedDoi = doi.replace(/^doi:/i, '').trim();
-    const url = `https://doi.org/${cleanedDoi}`;
+    const url = `/api/crossref/v1/works/${encodeURIComponent(cleanedDoi)}/transform`;
     
     let headers: Record<string, string>;
     
@@ -31,7 +91,7 @@ export async function convertDoiToCitation(
       };
     }
     
-    const response = await fetch(url, { headers });
+    const response = await fetchWithRetry(url, { headers });
     
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -52,9 +112,9 @@ export async function convertDoiToCitation(
 export async function getPaperMetadata(doi: string) {
   try {
     const cleanedDoi = doi.replace(/^doi:/i, '').trim();
-    const url = `https://doi.org/${cleanedDoi}`;
+    const url = `/api/crossref/v1/works/${encodeURIComponent(cleanedDoi)}/transform`;
     
-    const response = await fetch(url, {
+    const response = await fetchWithRetry(url, {
       headers: {
         'Accept': 'application/vnd.citationstyles.csl+json'
       }
@@ -77,19 +137,25 @@ export async function getPaperMetadata(doi: string) {
  * @param dois List of DOI strings
  * @returns Promise with list of DOI reference objects
  */
-export async function fetchDoiMetadata(dois: string[]) {
-  const doiRefs = [];
+export type FetchDoiMetadataOptions = {
+  concurrency?: number;
+  onProgress?: (completed: number, total: number) => void;
+};
 
-  const fetchPromises = dois.map(async (doi) => {
+export async function fetchDoiMetadata(dois: string[], options: FetchDoiMetadataOptions = {}) {
+  const concurrency = options.concurrency ?? 2;
+
+  const results = await mapWithConcurrency(dois, concurrency, async (doi) => {
     try {
       const metadata = await getPaperMetadata(doi);
-      
+
       if (!metadata) {
         return { doi };
       }
-      
+
       return {
         doi,
+        csl: metadata,
         title: metadata.title,
         authors: metadata.author?.map((author: { family?: string; given?: string }) =>
           `${author.family || ''}${author.given ? ', ' + author.given : ''}`
@@ -100,15 +166,7 @@ export async function fetchDoiMetadata(dois: string[]) {
       console.error(`Error fetching metadata for DOI ${doi}:`, error);
       return { doi };
     }
-  });
+  }, options.onProgress);
 
-  const results = await Promise.allSettled(fetchPromises);
-  
-  for (const result of results) {
-    if (result.status === 'fulfilled') {
-      doiRefs.push(result.value);
-    }
-  }
-
-  return doiRefs;
+  return results;
 }

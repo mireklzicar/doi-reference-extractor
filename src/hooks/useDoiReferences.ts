@@ -4,6 +4,7 @@ import { getReferences, extractCitedDois, fetchDoiMetadata, convertDoiToCitation
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { FORMAT_EXTENSIONS } from '../utils/citationUtils';
+import { cslToBibtex, cslToRis } from '../utils/cslFormatters';
 
 export interface DoiReferencesState {
   isLoading: boolean;
@@ -91,7 +92,58 @@ export function useDoiReferences() {
       }
 
       // Step 4: Fetch metadata for all cited DOIs
-      const doiMetadata = await fetchDoiMetadata(citedDois);
+      setState(prev => ({ ...prev, progress: Math.max(prev.progress, 30) }));
+
+      const PROGRESS_BASE = 30;
+      const PROGRESS_MAX_DURING_METADATA = 95;
+      const THROTTLE_MS = 120;
+
+      let lastUiUpdate = 0;
+      let lastCompleted = 0;
+      let tickTimer: ReturnType<typeof setInterval> | undefined;
+
+      // Prevent the bar from "looking stuck" before the first DOI resolves.
+      tickTimer = setInterval(() => {
+        setState(prev => {
+          if (!prev.isLoading) return prev;
+          const next = Math.min(PROGRESS_BASE + 8, prev.progress + 1);
+          if (next <= prev.progress) return prev;
+          return { ...prev, progress: next };
+        });
+      }, 700);
+
+      const doiMetadata = await fetchDoiMetadata(citedDois, {
+        concurrency: 2,
+        onProgress: (completed, total) => {
+          if (tickTimer) {
+            clearInterval(tickTimer);
+            tickTimer = undefined;
+          }
+
+          const now = Date.now();
+          const minIncrement = total > 80 ? 5 : 1;
+          const shouldThrottle =
+            completed !== total &&
+            now - lastUiUpdate < THROTTLE_MS &&
+            completed - lastCompleted < minIncrement;
+
+          if (shouldThrottle) return;
+
+          lastUiUpdate = now;
+          lastCompleted = completed;
+
+          const ratio = total > 0 ? completed / total : 1;
+          const nextProgress =
+            PROGRESS_BASE + Math.round(ratio * (PROGRESS_MAX_DURING_METADATA - PROGRESS_BASE));
+
+          setState(prev => ({
+            ...prev,
+            progress: Math.max(prev.progress, Math.min(PROGRESS_MAX_DURING_METADATA, nextProgress))
+          }));
+        }
+      }).finally(() => {
+        if (tickTimer) clearInterval(tickTimer);
+      });
       
       setState(prev => ({
         ...prev,
@@ -123,17 +175,44 @@ export function useDoiReferences() {
     setState(prev => ({ ...prev, generatingCitations: true }));
     
     try {
-      // Use Promise.all to process citations in parallel
-      const citationPromises = state.references.map(ref =>
-        convertDoiToCitation(ref.doi, format)
-          .catch(error => {
+      const citations: string[] = new Array(state.references.length);
+
+      // For BibTeX/RIS, generate locally from CSL JSON metadata (much faster and avoids Crossref rate limits)
+      if (format === 'application/x-bibtex' || format === 'application/x-research-info-systems') {
+        for (let i = 0; i < state.references.length; i++) {
+          const ref = state.references[i];
+          try {
+            if (ref.csl) {
+              citations[i] = format === 'application/x-bibtex' ? cslToBibtex(ref.doi, ref.csl) : cslToRis(ref.csl);
+            } else {
+              citations[i] = await convertDoiToCitation(ref.doi, format);
+            }
+          } catch (error) {
             console.error(`Error converting DOI ${ref.doi}:`, error);
-            return `Error: Could not convert DOI ${ref.doi}`;
-          })
-      );
-      
-      // Wait for all citations to complete in parallel
-      const citations = await Promise.all(citationPromises);
+            citations[i] = `Error: Could not convert DOI ${ref.doi}`;
+          }
+        }
+      } else {
+        // For style-based/plain-text formats, use Crossref (throttle concurrency to reduce 429s)
+        let nextIndex = 0;
+        const concurrency = 1;
+
+        const workers = Array.from({ length: concurrency }, async () => {
+          while (nextIndex < state.references.length) {
+            const currentIndex = nextIndex;
+            nextIndex += 1;
+            const ref = state.references[currentIndex];
+            try {
+              citations[currentIndex] = await convertDoiToCitation(ref.doi, format);
+            } catch (error) {
+              console.error(`Error converting DOI ${ref.doi}:`, error);
+              citations[currentIndex] = `Error: Could not convert DOI ${ref.doi}`;
+            }
+          }
+        });
+
+        await Promise.all(workers);
+      }
       // Join all citations with double newlines
       const content = citations.join('\n\n');
       
@@ -200,7 +279,14 @@ export function useDoiReferences() {
         
         for (const ref of state.references) {
           try {
-            const citation = await convertDoiToCitation(ref.doi, format);
+            let citation: string;
+            if (format === 'application/x-bibtex' && ref.csl) {
+              citation = cslToBibtex(ref.doi, ref.csl);
+            } else if (format === 'application/x-research-info-systems' && ref.csl) {
+              citation = cslToRis(ref.csl);
+            } else {
+              citation = await convertDoiToCitation(ref.doi, format);
+            }
             // Get appropriate file extension for the format
             const fileExt = FORMAT_EXTENSIONS[format] || '.txt';
             const filename = getFilenameFromDoiRef(ref) + fileExt;

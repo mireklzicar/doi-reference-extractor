@@ -1,6 +1,7 @@
 import axios from 'axios';
 import type { Reference, DoiReference, CitationFormat } from '../types';
 import { convertDoiToCitation as convertCitation, fetchDoiMetadata as fetchMetadata } from './citationService';
+import type { FetchDoiMetadataOptions } from './citationService';
 
 /**
  * Clean DOI by removing 'doi:' prefix if present
@@ -69,8 +70,11 @@ export const extractCitedDois = (references: Reference[]): string[] => {
  * @param dois List of DOI strings
  * @returns Promise with list of DOI reference objects
  */
-export const fetchDoiMetadata = async (dois: string[]): Promise<DoiReference[]> => {
-  return await fetchMetadata(dois);
+export const fetchDoiMetadata = async (
+  dois: string[],
+  options?: FetchDoiMetadataOptions
+): Promise<DoiReference[]> => {
+  return await fetchMetadata(dois, options ?? {});
 };
 
 /**

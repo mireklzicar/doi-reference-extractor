@@ -3,6 +3,10 @@
     {
       "source": "/api/references/(.*)",
       "destination": "https://api.opencitations.net/index/v2/references/$1"
+    },
+    {
+      "source": "/api/crossref/(.*)",
+      "destination": "https://api.crossref.org/$1"
     }
   ],
   "headers": [
@@ -20,6 +24,23 @@
         {
           "key": "Access-Control-Allow-Headers",
           "value": "Content-Type, Authorization"
+        }
+      ]
+    },
+    {
+      "source": "/api/crossref/(.*)",
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        },
+        {
+          "key": "Access-Control-Allow-Methods",
+          "value": "GET, OPTIONS"
+        },
+        {
+          "key": "Access-Control-Allow-Headers",
+          "value": "Content-Type, Authorization, Accept"
         }
       ]
     }
